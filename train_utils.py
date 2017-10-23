@@ -10,7 +10,11 @@ from keras.models import Model
 from keras.layers import (Input, Lambda)
 from keras.optimizers import SGD
 from keras.callbacks import ModelCheckpoint   
+#use keras_tqdm to monitor training progress to prevent notebook from crashing
+#from keras_tqdm import TQDMNotebookCallback
 import os
+#supress tensorflow warnings if any
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 def ctc_lambda_func(args):
     y_pred, labels, input_length, label_length = args
@@ -41,7 +45,8 @@ def train_model(input_to_softmax,
                 epochs=20,
                 verbose=1,
                 sort_by_duration=False,
-                max_duration=10.0):
+                max_duration=10.0,
+                use_tqdm = False):
     
     # create a class instance for obtaining batches of data
     audio_gen = AudioGenerator(minibatch_size=minibatch_size, 
@@ -66,15 +71,19 @@ def train_model(input_to_softmax,
     # make results/ directory, if necessary
     if not os.path.exists('results'):
         os.makedirs('results')
-
-    # add checkpointer
-    checkpointer = ModelCheckpoint(filepath='results/'+save_model_path, verbose=0)
+	
+	# add checkpointer
+    if use_tqdm:
+        checkpointer = TQDMNotebookCallback()
+    else:
+        checkpointer = ModelCheckpoint(filepath='results/'+save_model_path, verbose=0)
 
     # train the model
     hist = model.fit_generator(generator=audio_gen.next_train(), steps_per_epoch=steps_per_epoch,
         epochs=epochs, validation_data=audio_gen.next_valid(), validation_steps=validation_steps,
         callbacks=[checkpointer], verbose=verbose)
-
+	#if use_tqdm:
+	#    model.save_weights('results/'+save_model_path)
     # save model loss
     with open('results/'+pickle_path, 'wb') as f:
         pickle.dump(hist.history, f)
